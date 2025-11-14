@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
-import { AuthProvider, FeedbackProvider, MotionProvider, ThemeProvider } from "@/components/providers";
+import { AuthProvider, FeedbackProvider, MotionProvider, PwaProvider, ThemeProvider } from "@/components/providers";
 import { AuthControls } from "@/components/auth/auth-controls";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -13,7 +13,9 @@ const fontSans = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   title: "Gamy Ludo UI",
-  description: "A luminous gaming dashboard scaffold built with Next.js 14, Tailwind, shadcn/ui, and Framer Motion."
+  description: "A luminous gaming dashboard scaffold built with Next.js 14, Tailwind, shadcn/ui, and Framer Motion.",
+  manifest: "/manifest.json",
+  themeColor: "#050816"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -24,7 +26,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthProvider>
             <MotionProvider>
               <FeedbackProvider>
-                <div className="flex min-h-screen flex-col">
+                <PwaProvider>
+                  <div className="flex min-h-screen flex-col">
                   <header className="sticky top-0 z-50 border-b border-white/5 bg-background/70 px-8 py-6 backdrop-blur-xl">
                     <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4">
                       <div>
@@ -42,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     Crafted with ⚡️ Next.js, Tailwind CSS, shadcn/ui & Framer Motion.
                   </footer>
                 </div>
+                </PwaProvider>
               </FeedbackProvider>
             </MotionProvider>
           </AuthProvider>

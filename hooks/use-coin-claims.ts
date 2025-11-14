@@ -11,6 +11,8 @@ export interface CoinClaim {
   coins: number;
   rarity?: string;
   title?: string;
+  redemptionCode?: string;
+  receiptUrl?: string;
   claimedAt?: Date;
 }
 
@@ -40,6 +42,8 @@ const hydrateClaim = (record: CoinClaimRecord): CoinClaim | null => {
     coins,
     rarity: typeof record.rarity === "string" ? record.rarity : undefined,
     title: typeof record.title === "string" ? record.title : undefined,
+    redemptionCode: typeof record.redemptionCode === "string" ? record.redemptionCode : undefined,
+    receiptUrl: typeof record.receiptUrl === "string" ? record.receiptUrl : undefined,
     claimedAt
   };
 };
