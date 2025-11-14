@@ -4,19 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { doc, onSnapshot, type FirestoreError } from "firebase/firestore";
 
 import { firebaseFirestore } from "@/lib/firebase/client";
-
-export interface DailyPuzzle {
-  id: string;
-  title: string;
-  difficulty: "easy" | "medium" | "hard" | "extreme";
-  objective: string;
-  points: number;
-}
-
-interface DailyPuzzleDoc {
-  puzzles?: DailyPuzzle[];
-  releaseAt?: { seconds: number; nanoseconds: number };
-}
+import type { DailyPuzzle, DailyPuzzleDocument } from "@/lib/puzzles";
 
 const formatDateId = (date: Date) =>
   new Intl.DateTimeFormat("en-CA", {
@@ -37,7 +25,7 @@ export const useDailyPuzzles = () => {
     const unsubscribe = onSnapshot(
       dailyDoc,
       (snapshot) => {
-        const data = snapshot.data() as DailyPuzzleDoc | undefined;
+        const data = snapshot.data() as DailyPuzzleDocument | undefined;
         if (data?.puzzles && Array.isArray(data.puzzles)) {
           setPuzzles(
             data.puzzles.map((item, index) => ({
