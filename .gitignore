@@ -1,0 +1,8 @@
+node_modules
+.next
+.env.local
+.env.production
+.env.development
+.env.test
+*.log
+firebase-debug.log
