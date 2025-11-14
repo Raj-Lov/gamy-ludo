@@ -113,6 +113,25 @@ a {
   }
 }
 
+@keyframes flame-flicker {
+  0% {
+    transform: scale(1) translateY(0);
+    opacity: 0.85;
+  }
+  45% {
+    transform: scale(1.05) translateY(-2px);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(0.95) translateY(1px);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.06) translateY(-1px);
+    opacity: 1;
+  }
+}
+
 @layer utilities {
   .skeleton {
     position: relative;
@@ -138,5 +157,9 @@ a {
 
   .animate-float-soft {
     animation: float-soft 6s ease-in-out infinite;
+  }
+
+  .animate-flame {
+    animation: flame-flicker 1.4s ease-in-out infinite;
   }
 }
