@@ -1,0 +1,17 @@
+{
+  "name": "Gamy Ludo",
+  "short_name": "GamyLudo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050816",
+  "theme_color": "#050816",
+  "description": "Track your puzzle streaks, vault rewards, and community milestones in one luminous hub.",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

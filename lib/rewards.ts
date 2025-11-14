@@ -81,6 +81,8 @@ export interface CoinClaimRecord extends DocumentData {
   coins?: number;
   rarity?: CoinFragmentRarity;
   title?: string;
+  redemptionCode?: string;
+  receiptUrl?: string;
   claimedAt?: unknown;
 }
 

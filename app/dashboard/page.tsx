@@ -2,13 +2,23 @@
 
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
-import { Flame, Sparkles, TimerReset, Volume2, VolumeX, Vibrate, Zap } from "lucide-react";
+import {
+  Bell,
+  Download,
+  Flame,
+  Sparkles,
+  TimerReset,
+  Volume2,
+  VolumeX,
+  Vibrate,
+  WifiOff,
+  Zap
+} from "lucide-react";
 
 import { ProtectedRoute } from "@/components/auth/protected-route";
-import { MotionDiv } from "@/components/providers";
+import { MotionDiv, useAuth, useFeedback, usePwa } from "@/components/providers";
 import { GlassCard } from "@/components/primitives/glass-card";
 import { GradientButton } from "@/components/primitives/gradient-button";
-import { useAuth, useFeedback } from "@/components/providers";
 import { ProgressRing } from "@/components/dashboard/progress-ring";
 import { StreakFlame } from "@/components/dashboard/streak-flame";
 import { useDailyPuzzles } from "@/hooks/use-daily-puzzles";
@@ -78,6 +88,15 @@ const DashboardPage = () => {
     toggleXpBoost,
     error: progressError
   } = useUserProgress(user?.uid);
+  const {
+    notificationPermission,
+    notificationsSupported,
+    requestNotificationPermission,
+    installPromptEvent,
+    showInstallPrompt,
+    isInstalled
+  } = usePwa();
+  const [isOffline, setIsOffline] = useState(false);
 
   const totalPuzzles = puzzles.length;
   const completedPuzzles = progress?.completedPuzzles.length ?? 0;
@@ -133,6 +152,70 @@ const DashboardPage = () => {
       });
     }
   }, [notify, progressError]);
+
+  useEffect(() => {
+    setIsOffline(typeof navigator !== "undefined" ? !navigator.onLine : false);
+    if (typeof window === "undefined") {
+      return;
+    }
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => {
+      setIsOffline(true);
+      notify({
+        title: "Offline mode engaged",
+        description: "Cached dashboard data will be served until connection is restored.",
+        variant: "info"
+      });
+    };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [notify]);
+
+  const notificationsEnabled = notificationPermission === "granted";
+  const canRequestNotifications = notificationsSupported && notificationPermission !== "granted";
+  const canPromptInstall = Boolean(installPromptEvent) && !isInstalled;
+  const installLabel = canPromptInstall ? "Install PWA" : isInstalled ? "PWA installed" : "Install prompt pending";
+  const installDisabled = !canPromptInstall && !isInstalled;
+
+  const handleEnableNotifications = async () => {
+    const permission = await requestNotificationPermission();
+    if (permission === "granted") {
+      notify({
+        title: "Push alerts enabled",
+        description: "We will ping you when fresh drops go live.",
+        variant: "success"
+      });
+    } else {
+      notify({
+        title: "Permission declined",
+        description: "You can change this later in your browser settings.",
+        variant: "error"
+      });
+    }
+  };
+
+  const handleInstallPrompt = async () => {
+    if (!canPromptInstall) {
+      notify({
+        title: isInstalled ? "Already installed" : "Install not available yet",
+        description: isInstalled
+          ? "The PWA is ready to launch from your home screen."
+          : "Open this dashboard from your browser menu to add it manually.",
+        variant: "info"
+      });
+      return;
+    }
+    await showInstallPrompt();
+    notify({
+      title: "Install prompt sent",
+      description: "Complete the browser dialog to pin Gamy Ludo.",
+      variant: "success"
+    });
+  };
 
   const handleCompletePuzzle = async (puzzle: DailyPuzzle) => {
     if (!user) {
@@ -263,16 +346,71 @@ const DashboardPage = () => {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-            <GlassCard className="space-y-6">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-xl font-semibold text-foreground">Today&apos;s puzzle queue</h3>
-                  <p className="text-sm text-muted-foreground">Sharpen your instincts with curated tactical drills.</p>
+            <div className="space-y-6">
+              <GlassCard className="border-white/5 bg-white/5 p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-[0.4em] text-white/40">Stay in sync</p>
+                    <h2 className="text-xl font-semibold text-white">Notifications, install, and offline cache</h2>
+                    <p className="text-sm text-white/60">
+                      Enable push alerts, add Gamy Ludo to your home screen, and rely on cached dashboards when connectivity drops.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-3 text-sm text-white/70">
+                    <button
+                      type="button"
+                      onClick={notificationsEnabled ? undefined : handleEnableNotifications}
+                      disabled={!canRequestNotifications}
+                      className={`flex items-center gap-2 rounded-full border px-4 py-2 transition ${
+                        notificationsEnabled
+                          ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
+                          : canRequestNotifications
+                              ? "border-white/10 bg-white/10 text-white/80 hover:border-white/30 hover:bg-white/20"
+                              : "border-white/10 bg-white/5 text-white/40"
+                      }`}
+                    >
+                      <Bell className="h-4 w-4" />
+                      {notificationsEnabled ? "Push alerts on" : "Enable push alerts"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleInstallPrompt}
+                      disabled={installDisabled}
+                      className={`flex items-center gap-2 rounded-full border px-4 py-2 transition ${
+                        canPromptInstall
+                          ? "border-white/10 bg-white/10 text-white/80 hover:border-white/30 hover:bg-white/20"
+                          : isInstalled
+                              ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
+                              : "border-white/10 bg-white/5 text-white/50"
+                      }`}
+                    >
+                      <Download className="h-4 w-4" />
+                      {installLabel}
+                    </button>
+                    <div
+                      className={`flex items-center gap-2 rounded-full border px-4 py-2 text-xs uppercase tracking-[0.35em] transition ${
+                        isOffline
+                          ? "border-amber-400/40 bg-amber-500/10 text-amber-200"
+                          : "border-white/10 bg-white/5 text-white/60"
+                      }`}
+                    >
+                      <WifiOff className="h-4 w-4" />
+                      {isOffline ? "Offline cache active" : "Online"}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1 text-xs uppercase tracking-[0.3em] text-white/60">
-                  <Sparkles className="h-4 w-4" /> {totalPuzzles} tasks
+              </GlassCard>
+
+              <GlassCard className="space-y-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-semibold text-foreground">Today&apos;s puzzle queue</h3>
+                    <p className="text-sm text-muted-foreground">Sharpen your instincts with curated tactical drills.</p>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1 text-xs uppercase tracking-[0.3em] text-white/60">
+                    <Sparkles className="h-4 w-4" /> {totalPuzzles} tasks
+                  </div>
                 </div>
-              </div>
 
               {isBusy ? (
                 <SkeletonLines rows={3} />
@@ -318,7 +456,8 @@ const DashboardPage = () => {
                   })}
                 </div>
               )}
-            </GlassCard>
+              </GlassCard>
+            </div>
 
             <div className="grid gap-6">
               <GlassCard className="flex flex-col items-center gap-6">

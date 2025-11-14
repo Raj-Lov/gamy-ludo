@@ -9,6 +9,7 @@ import { GradientButton } from "@/components/primitives/gradient-button";
 import { MotionDiv, useAuth, useFeedback } from "@/components/providers";
 import { useCoinClaims } from "@/hooks/use-coin-claims";
 import { useCoinRewards } from "@/hooks/use-coin-rewards";
+import { PuzzleConfetti } from "@/components/puzzles/puzzle-confetti";
 
 interface RazorpayOrderResponse {
   order: {
@@ -36,6 +37,9 @@ export default function VaultPage() {
   const { config } = useCoinRewards();
   const { claims, totalCoins } = useCoinClaims(user?.uid);
   const [cashoutLoading, setCashoutLoading] = useState(false);
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const [copied, setCopied] = useState<string | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const sortedClaims = useMemo(
     () => [...claims].sort((a, b) => (b.claimedAt?.getTime() ?? 0) - (a.claimedAt?.getTime() ?? 0)),
@@ -127,10 +131,71 @@ export default function VaultPage() {
     }
   }, [config.cashout.minCoins, notify, readyForCashout, totalCoins, user]);
 
+  const handleReveal = useCallback(
+    (fragmentId: string) => {
+      let alreadyVisible = false;
+      setRevealed((prev) => {
+        alreadyVisible = Boolean(prev[fragmentId]);
+        if (alreadyVisible) {
+          return prev;
+        }
+        return { ...prev, [fragmentId]: true };
+      });
+      if (alreadyVisible) {
+        notify({
+          title: "Already revealed",
+          description: "This fragment is visible—copy it whenever you're ready.",
+          variant: "info"
+        });
+        return;
+      }
+      setShowConfetti(true);
+      window.setTimeout(() => setShowConfetti(false), 2000);
+      notify({
+        title: "Reward unlocked",
+        description: "Fragment details revealed. Copy or redeem before the timer cools down!",
+        variant: "success"
+      });
+    },
+    [notify]
+  );
+
+  const handleCopy = useCallback(
+    async (fragmentId: string, code?: string | null) => {
+      if (!code) {
+        notify({
+          title: "Nothing to copy",
+          description: "This fragment doesn't expose a redemption code.",
+          variant: "info"
+        });
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(code);
+        setCopied(fragmentId);
+        window.setTimeout(() => setCopied((current) => (current === fragmentId ? null : current)), 2000);
+        notify({
+          title: "Copied to clipboard",
+          description: "Share the shard or redeem it instantly.",
+          variant: "success"
+        });
+      } catch (error) {
+        console.error("Unable to copy reward code", error);
+        notify({
+          title: "Copy failed",
+          description: "Clipboard access was blocked. Try again manually.",
+          variant: "error"
+        });
+      }
+    },
+    [notify]
+  );
+
   return (
     <ProtectedRoute redirectTo="/login">
       <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-black to-slate-900 text-white">
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
+      <PuzzleConfetti show={showConfetti} />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(14,116,144,0.25),_transparent_55%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom,_rgba(79,70,229,0.18),_transparent_60%)]" />
       <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 pb-24 pt-24">
@@ -170,10 +235,20 @@ export default function VaultPage() {
         </GlassCard>
 
         <div className="space-y-3">
-          <h2 className="text-2xl font-semibold">Claim log</h2>
-          <p className="text-sm text-white/60">
-            A chronological record of every fragment you have bonded. Newly reserved shards rise to the top.
-          </p>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold">Fragment vault</h2>
+              <p className="text-sm text-white/60">
+                Reveal stored shards, copy redemption intel, and surface Razorpay receipts for accounting.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-white/50">
+              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 uppercase tracking-[0.3em] text-emerald-200">
+                Grid synced
+              </span>
+              <span>Updated automatically on new claims</span>
+            </div>
+          </div>
         </div>
 
         {sortedClaims.length === 0 ? (
@@ -182,28 +257,73 @@ export default function VaultPage() {
             <p className="mt-3 text-sm">Explore the unlock protocol to reserve your first shard.</p>
           </div>
         ) : (
-          <div className="grid gap-4">
-            {sortedClaims.map((claim) => (
-              <GlassCard key={claim.fragmentId} className="flex flex-col gap-3 border-white/5 bg-white/[0.04] p-5 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.4em] text-white/40">Fragment</p>
-                  <p className="text-lg font-semibold text-white">
-                    {claim.title ?? claim.fragmentId}
-                  </p>
-                  {claim.rarity ? (
-                    <p className="text-xs uppercase tracking-[0.4em] text-white/40">{claim.rarity}</p>
-                  ) : null}
-                </div>
-                <div className="text-right md:text-center">
-                  <p className="text-xs uppercase tracking-[0.4em] text-white/40">Coins</p>
-                  <p className="text-2xl font-semibold text-emerald-200">+{claim.coins.toLocaleString()}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs uppercase tracking-[0.4em] text-white/40">Claimed</p>
-                  <p className="text-sm text-white/60">{formatDate(claim.claimedAt)}</p>
-                </div>
-              </GlassCard>
-            ))}
+          <div className="grid gap-5 md:grid-cols-2">
+            {sortedClaims.map((claim) => {
+              const code = claim.redemptionCode ?? claim.fragmentId;
+              const isRevealed = revealed[claim.fragmentId] ?? false;
+              const isCopied = copied === claim.fragmentId;
+              return (
+                <GlassCard
+                  key={claim.fragmentId}
+                  className="flex h-full flex-col justify-between border-white/5 bg-white/5 p-6 backdrop-blur"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.4em] text-white/40">Fragment</p>
+                        <p className="text-xl font-semibold text-white">{claim.title ?? claim.fragmentId}</p>
+                      </div>
+                      {claim.rarity ? (
+                        <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs uppercase tracking-[0.35em] text-white/70">
+                          {claim.rarity}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4">
+                      <p className="text-xs uppercase tracking-[0.4em] text-emerald-200">Redemption code</p>
+                      <p
+                        className={`mt-2 font-mono text-lg tracking-wide text-emerald-100 ${
+                          isRevealed ? "blur-0" : "blur-md"
+                        } transition-all duration-500`}
+                      >
+                        {code ?? "—"}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-white/60">
+                      <span>Claimed {formatDate(claim.claimedAt)}</span>
+                      <span>+{claim.coins.toLocaleString()} coins</span>
+                    </div>
+                  </div>
+                  <div className="mt-6 flex flex-col gap-3 md:flex-row">
+                    {!isRevealed ? (
+                      <button
+                        type="button"
+                        onClick={() => handleReveal(claim.fragmentId)}
+                        className="flex-1 rounded-full border border-sky-400/30 bg-sky-500/10 px-4 py-2 text-sm font-medium text-sky-200 transition hover:border-sky-400/50 hover:bg-sky-500/20"
+                      >
+                        Reveal code
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(claim.fragmentId, code)}
+                        className="flex-1 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:border-emerald-400/60 hover:bg-emerald-500/20"
+                      >
+                        {isCopied ? "Copied!" : "Copy code"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      disabled={!claim.receiptUrl}
+                      onClick={() => claim.receiptUrl && window.open(claim.receiptUrl, "_blank", "noopener")}
+                      className="flex-1 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-medium text-white/80 transition hover:border-white/30 hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {claim.receiptUrl ? "View Razorpay receipt" : "Receipt pending"}
+                    </button>
+                  </div>
+                </GlassCard>
+              );
+            })}
           </div>
         )}
       </div>
