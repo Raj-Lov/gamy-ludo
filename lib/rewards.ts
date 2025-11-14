@@ -83,6 +83,8 @@ export interface CoinClaimRecord extends DocumentData {
   redemptionCode?: string;
   receiptUrl?: string;
   claimedAt?: unknown;
+  description?: string;
+  type?: string;
 }
 
 interface CoinClaimsDocument extends DocumentData {

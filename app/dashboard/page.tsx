@@ -6,6 +6,8 @@ import {
   Bell,
   Download,
   Flame,
+  Gift,
+  PlayCircle,
   Sparkles,
   TimerReset,
   Volume2,
@@ -22,6 +24,7 @@ import { GradientButton } from "@/components/primitives/gradient-button";
 import { ProgressRing } from "@/components/dashboard/progress-ring";
 import { StreakFlame } from "@/components/dashboard/streak-flame";
 import { useDailyPuzzles } from "@/hooks/use-daily-puzzles";
+import { useEngagementRewards } from "@/hooks/use-engagement-rewards";
 import { useUserProgress } from "@/hooks/use-user-progress";
 import type { DailyPuzzle } from "@/hooks/use-daily-puzzles";
 
@@ -89,6 +92,12 @@ const DashboardPage = () => {
     error: progressError
   } = useUserProgress(user?.uid);
   const {
+    dailyBonus: dailyBonusState,
+    watchAndEarn: watchAndEarnState,
+    loading: engagementLoading,
+    error: engagementError
+  } = useEngagementRewards(user?.uid);
+  const {
     notificationPermission,
     notificationsSupported,
     requestNotificationPermission,
@@ -106,6 +115,41 @@ const DashboardPage = () => {
   const weeklyProgress = weeklyGoal === 0 ? 0 : Math.min(streakCount, weeklyGoal) / weeklyGoal;
   const xpRatio = xp?.progressToNext ?? 0;
   const isBusy = puzzlesLoading || progressLoading;
+  const claimedDailyToday = dailyBonusState.lastClaimDate === todayId;
+  const dailyRewardCoins = Math.max(0, dailyBonusState.reward);
+  const dailyButtonLabel = engagementLoading
+    ? "Loading bonus..."
+    : dailyBonusState.claiming
+      ? "Claiming..."
+      : dailyBonusState.available
+        ? `Claim +${dailyRewardCoins.toLocaleString()} coins`
+        : claimedDailyToday
+          ? "Claimed today"
+          : user
+            ? "Come back tomorrow"
+            : "Sign in to claim";
+  const watchRemaining = Math.max(0, watchAndEarnState.remainingToday);
+  const watchNextAvailable = watchAndEarnState.nextAvailableAt;
+  const watchButtonLabel = engagementLoading
+    ? "Loading rewards..."
+    : watchAndEarnState.claiming
+      ? "Processing..."
+      : watchAndEarnState.available
+        ? `Watch & earn +${watchAndEarnState.reward.toLocaleString()}`
+        : watchRemaining <= 0
+          ? "Limit reached"
+          : "Cooldown active";
+  const watchStatusLabel = (() => {
+    if (watchRemaining <= 0) return "All watch rewards claimed today";
+    if (watchAndEarnState.available) return "Ready to watch and earn";
+    if (watchNextAvailable) {
+      return `Ready at ${watchNextAvailable.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+      })}`;
+    }
+    return "Check back soon";
+  })();
 
   const nextReset = useMemo(createNextReset, [todayId]);
 
@@ -152,6 +196,17 @@ const DashboardPage = () => {
       });
     }
   }, [notify, progressError]);
+
+  useEffect(() => {
+    if (engagementError) {
+      notify({
+        title: "Engagement perks unavailable",
+        description: engagementError.message,
+        variant: "error",
+        vibrate: true
+      });
+    }
+  }, [engagementError, notify]);
 
   useEffect(() => {
     setIsOffline(typeof navigator !== "undefined" ? !navigator.onLine : false);
@@ -295,6 +350,92 @@ const DashboardPage = () => {
     toggleHaptics();
   };
 
+  const handleClaimDailyBonus = async () => {
+    if (!user) {
+      notify({
+        title: "Sign in required",
+        description: "Log in with Google to bank your daily bonus.",
+        variant: "error",
+        vibrate: true
+      });
+      return;
+    }
+
+    if (!dailyBonusState.available) {
+      notify({
+        title: "Bonus not ready",
+        description: claimedDailyToday
+          ? "You have already claimed today’s login bonus."
+          : "Daily bonuses unlock at midnight—check back soon.",
+        variant: "info",
+        vibrate: false
+      });
+      return;
+    }
+
+    try {
+      const result = await dailyBonusState.claim();
+      notify({
+        title: `+${result.reward.toLocaleString()} coins secured`,
+        description: `Daily streak boosted to ${result.streak} day${result.streak === 1 ? "" : "s"}.`,
+        variant: "success",
+        vibrate: true
+      });
+    } catch (error) {
+      notify({
+        title: "Unable to claim bonus",
+        description: error instanceof Error ? error.message : "Please try again shortly.",
+        variant: "error",
+        vibrate: true
+      });
+    }
+  };
+
+  const handleWatchAndEarn = async () => {
+    if (!user) {
+      notify({
+        title: "Sign in required",
+        description: "Log in to activate watch & earn sessions.",
+        variant: "error",
+        vibrate: true
+      });
+      return;
+    }
+
+    if (!watchAndEarnState.available) {
+      notify({
+        title: "Session not ready",
+        description:
+          watchRemaining <= 0
+            ? "You have hit today’s watch limit. Catch the next wave tomorrow."
+            : "Cooldown active—hang tight for the next reward.",
+        variant: "info",
+        vibrate: false
+      });
+      return;
+    }
+
+    try {
+      const result = await watchAndEarnState.claim();
+      notify({
+        title: `+${result.reward.toLocaleString()} coins earned`,
+        description:
+          result.remainingViews > 0
+            ? `${result.remainingViews} session${result.remainingViews === 1 ? "" : "s"} left today.`
+            : "Daily watch streak complete!",
+        variant: "success",
+        vibrate: true
+      });
+    } catch (error) {
+      notify({
+        title: "Watch reward failed",
+        description: error instanceof Error ? error.message : "Please try again shortly.",
+        variant: "error",
+        vibrate: true
+      });
+    }
+  };
+
   return (
     <ProtectedRoute>
       <section className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-8 py-16">
@@ -398,6 +539,88 @@ const DashboardPage = () => {
                       {isOffline ? "Offline cache active" : "Online"}
                     </div>
                   </div>
+                </div>
+              </GlassCard>
+
+              <GlassCard className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.4em] text-white/40">Daily login bonus</p>
+                      <h3 className="text-lg font-semibold text-white">Keep your streak blazing</h3>
+                    </div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/20 text-amber-200">
+                      <Gift className="h-6 w-6" />
+                    </div>
+                  </div>
+                  {engagementLoading ? (
+                    <SkeletonLines rows={3} />
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-white">
+                        <p className="text-xs uppercase tracking-[0.35em] text-white/60">Day {dailyBonusState.nextStreak}</p>
+                        <p className="text-3xl font-semibold">+{dailyRewardCoins.toLocaleString()} coins</p>
+                        <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+                          Current streak · {dailyBonusState.streak} day{dailyBonusState.streak === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                      <GradientButton
+                        size="sm"
+                        onClick={handleClaimDailyBonus}
+                        disabled={engagementLoading || dailyBonusState.claiming}
+                        className={clsx(
+                          !dailyBonusState.available && "opacity-70 hover:opacity-70",
+                          "transition"
+                        )}
+                      >
+                        {dailyButtonLabel}
+                      </GradientButton>
+                      <p className="text-xs text-white/60">
+                        Claim once per day. Missing a day resets the streak unless you deploy a streak freeze.
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.4em] text-white/40">Watch & earn</p>
+                      <h3 className="text-lg font-semibold text-white">Stream a clip, bank coins</h3>
+                    </div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500/20 text-sky-200">
+                      <PlayCircle className="h-6 w-6" />
+                    </div>
+                  </div>
+                  {engagementLoading ? (
+                    <SkeletonLines rows={3} />
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-sky-400/30 bg-sky-500/10 p-4 text-white">
+                        <p className="text-xs uppercase tracking-[0.35em] text-white/60">Remaining today</p>
+                        <p className="text-3xl font-semibold">{watchRemaining}</p>
+                        <p className="text-xs uppercase tracking-[0.3em] text-white/50">{watchStatusLabel}</p>
+                      </div>
+                      <p className="text-sm text-white/70">
+                        Earn +{watchAndEarnState.reward.toLocaleString()} coins per completed session.
+                      </p>
+                      <GradientButton
+                        size="sm"
+                        onClick={handleWatchAndEarn}
+                        disabled={engagementLoading || watchAndEarnState.claiming}
+                        className={clsx(
+                          (!watchAndEarnState.available || watchRemaining <= 0) && "opacity-70 hover:opacity-70",
+                          "transition"
+                        )}
+                      >
+                        {watchButtonLabel}
+                      </GradientButton>
+                      <p className="text-xs text-white/60">
+                        Rewards refresh every {watchAndEarnState.cooldownMinutes} minutes with a daily cap of
+                        {" "}
+                        {watchAndEarnState.maxViewsPerDay} session{watchAndEarnState.maxViewsPerDay === 1 ? "" : "s"}.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </GlassCard>
 

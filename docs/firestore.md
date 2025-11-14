@@ -23,7 +23,10 @@ Populate the variables in `.env.local` based on `.env.example`.
 
 | Collection | Document ID | Fields | Description |
 | --- | --- | --- | --- |
-| `users` | Firebase Auth UID | `displayName: string`, `email: string`, `photoURL: string`, `role: "user" \| "admin"`, `createdAt: Date`, `updatedAt: Date` | Stores the normalized player profile and role that powers protected routes. Documents are created on first sign-in and default to the `user` role. |
+| `users` | Firebase Auth UID | `displayName: string`, `email: string`, `photoURL: string`, `role: "user" \| "admin"`, `coins: number`, `createdAt: Date`, `updatedAt: Date` | Stores the normalized player profile, running coin balance, and role that powers protected routes. Documents are created on first sign-in and default to the `user` role. |
+| `coinClaims` | Firebase Auth UID | `totalCoins: number`, `claimed: Record<string, { fragmentId: string, coins: number, title: string, type?: string, claimedAt: Date }>` | Ledger of every reward fragment, bonus, or watch payout the player has earned. The `totalCoins` aggregate backs vault totals and Razorpay cashouts. |
+| `userEngagement` | Firebase Auth UID | `dailyBonus: { lastClaimDate: string, streak: number, totalClaims: number, lastReward: number, lastClaimedAt: Date }`, `watchAndEarn: { lastWatchDate: string, watchesToday: number, totalViews: number, lastReward: number, lastWatchedAt: Date }` | Tracks daily login bonus streaks and watch-and-earn cooldown state for each player. |
+| `config` | `engagement` | `dailyBonus: { baseReward: number, streakMultipliers: number[], capStreak: number }`, `watchAndEarn: { rewardPerView: number, cooldownMinutes: number, maxViewsPerDay: number }`, `updatedAt: Date` | Central configuration for engagement systems powering the daily login bonus and watch-and-earn rewards. Admin tooling can update this document to tune payouts and cooldowns. |
 
 ## Indexes
 
