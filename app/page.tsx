@@ -1,6 +1,8 @@
 "use client";
 
-import { MotionDiv } from "@/components/providers";
+import { useRouter } from "next/navigation";
+
+import { MotionDiv, useAuth } from "@/components/providers";
 import { GradientButton } from "@/components/primitives/gradient-button";
 import { GlassCard } from "@/components/primitives/glass-card";
 import { ProgressRing } from "@/components/primitives/progress-ring";
@@ -24,6 +26,9 @@ const cardData = [
 ];
 
 export default function HomePage() {
+  const router = useRouter();
+  const { user } = useAuth();
+
   return (
     <section className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-8 py-16">
       <div className="flex flex-col gap-6 text-center">
@@ -44,7 +49,14 @@ export default function HomePage() {
           </p>
         </MotionDiv>
         <div className="flex flex-wrap justify-center gap-4">
-          <GradientButton size="lg">Launch the arena</GradientButton>
+          <GradientButton
+            size="lg"
+            onClick={() => {
+              router.push(user ? "/dashboard" : "/login");
+            }}
+          >
+            Launch the arena
+          </GradientButton>
           <GradientButton size="lg" variant="outline">
             Learn more
           </GradientButton>
