@@ -2,7 +2,7 @@ import { type FirebaseApp, getApps, initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-import { getFirebaseClientConfig } from "./config";
+import { getFirebaseClientConfig } from "./config.ts";
 
 let clientApp: FirebaseApp | undefined;
 

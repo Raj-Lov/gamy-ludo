@@ -6,7 +6,6 @@ import {
   type Firestore
 } from "firebase/firestore";
 
-import { firebaseFirestore } from "@/lib/firebase/client";
 
 export type CoinFragmentRarity = "common" | "rare" | "epic" | "legendary";
 
@@ -100,16 +99,41 @@ export interface ReserveCoinResult {
 const getFragmentById = (config: CoinRewardConfig, fragmentId: string): CoinFragment | undefined =>
   config.fragments.find((fragment) => fragment.id === fragmentId);
 
+export interface FirestoreDependencies {
+  runTransaction: typeof runTransaction;
+  doc: typeof doc;
+  serverTimestamp: typeof serverTimestamp;
+}
+
+const defaultFirestoreDependencies: FirestoreDependencies = {
+  runTransaction,
+  doc,
+  serverTimestamp
+};
+
+let cachedFirestore: Firestore | null = null;
+
+const getDefaultFirestore = async (): Promise<Firestore> => {
+  if (!cachedFirestore) {
+    const module = await import("./firebase/client.ts");
+    cachedFirestore = module.firebaseFirestore;
+  }
+
+  return cachedFirestore;
+};
+
 export const reserveCoinReward = async (
   userId: string,
   fragmentId: string,
-  db: Firestore = firebaseFirestore
+  db?: Firestore,
+  dependencies: FirestoreDependencies = defaultFirestoreDependencies
 ): Promise<ReserveCoinResult> => {
-  const configRef = doc(db, "config", "coinRewards");
-  const claimRef = doc(db, "coinClaims", userId);
-  const userRef = doc(db, "users", userId);
+  const activeDb = db ?? (await getDefaultFirestore());
+  const configRef = dependencies.doc(activeDb, "config", "coinRewards");
+  const claimRef = dependencies.doc(activeDb, "coinClaims", userId);
+  const userRef = dependencies.doc(activeDb, "users", userId);
 
-  return runTransaction(db, async (transaction) => {
+  return dependencies.runTransaction(activeDb, async (transaction) => {
     const configSnap = await transaction.get(configRef);
     const config = (configSnap.data() as CoinRewardConfig | undefined) ?? defaultCoinRewardConfig;
     const fragment = getFragmentById(config, fragmentId);
@@ -141,10 +165,10 @@ export const reserveCoinReward = async (
           coins: coinsAwarded,
           rarity: fragment.rarity,
           title: fragment.title,
-          claimedAt: serverTimestamp()
+          claimedAt: dependencies.serverTimestamp()
         }
       },
-      updatedAt: serverTimestamp()
+      updatedAt: dependencies.serverTimestamp()
     };
 
     transaction.set(claimRef, nextClaimPayload, { merge: true });
@@ -158,11 +182,11 @@ export const reserveCoinReward = async (
       userRef,
       {
         coins: userCoins + coinsAwarded,
-        updatedAt: serverTimestamp(),
+        updatedAt: dependencies.serverTimestamp(),
         rewardSummary: {
           totalCoins: nextTotal,
           lastFragmentId: fragmentId,
-          lastUpdatedAt: serverTimestamp()
+          lastUpdatedAt: dependencies.serverTimestamp()
         }
       },
       { merge: true }

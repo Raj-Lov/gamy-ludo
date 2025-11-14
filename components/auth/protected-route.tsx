@@ -4,6 +4,7 @@ import { type ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth, type AppUserRole } from "@/components/providers";
+import { evaluateProtectedRoute } from "./protected-route-logic";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -23,19 +24,21 @@ export const ProtectedRoute = ({
   const router = useRouter();
   const { user, loading, role } = useAuth();
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.replace(redirectTo);
-    }
-  }, [loading, redirectTo, router, user]);
+  const evaluation = evaluateProtectedRoute({
+    loading,
+    user,
+    role,
+    requiredRole,
+    redirectTo
+  });
 
   useEffect(() => {
-    if (!loading && requiredRole && role !== requiredRole) {
-      router.replace(redirectTo);
+    if (evaluation.status === "redirect") {
+      router.replace(evaluation.redirectTarget);
     }
-  }, [loading, redirectTo, requiredRole, role, router]);
+  }, [evaluation.redirectTarget, evaluation.status, router]);
 
-  if (loading) {
+  if (evaluation.status === "loading") {
     return (
       loadingFallback ?? (
         <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">
@@ -45,11 +48,7 @@ export const ProtectedRoute = ({
     );
   }
 
-  if (!user) {
-    return null;
-  }
-
-  if (requiredRole && role !== requiredRole) {
+  if (evaluation.status === "redirect") {
     return null;
   }
 

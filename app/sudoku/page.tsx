@@ -8,27 +8,17 @@ import { Button } from "@/components/ui/button";
 import { PuzzleConfetti } from "@/components/puzzles/puzzle-confetti";
 import { PuzzleShell } from "@/components/puzzles/puzzle-shell";
 import { PuzzleStats } from "@/components/puzzles/puzzle-stats";
-
-const sudokuSolution = [
-  [1, 2, 3, 4],
-  [3, 4, 1, 2],
-  [4, 1, 2, 3],
-  [2, 3, 4, 1]
-];
-
-const sudokuPuzzle = [
-  [1, null, 3, null],
-  [null, 4, null, 2],
-  [4, null, null, null],
-  [null, 3, null, 1]
-];
-
-const isCellFixed = (row: number, column: number) => sudokuPuzzle[row][column] !== null;
-
-const numbers = [1, 2, 3, 4];
+import {
+  cloneSudokuGrid,
+  isCellFixed,
+  isSudokuSolved,
+  sudokuNumbers,
+  sudokuPuzzle,
+  sudokuSolution
+} from "@/lib/puzzles/sudoku";
 
 export default function SudokuPage() {
-  const [board, setBoard] = useState(() => sudokuPuzzle.map((row) => [...row]));
+  const [board, setBoard] = useState(() => cloneSudokuGrid(sudokuPuzzle));
   const [hintsRemaining, setHintsRemaining] = useState(3);
   const [boostsRemaining, setBoostsRemaining] = useState(5);
   const [message, setMessage] = useState<string | null>(null);
@@ -36,13 +26,7 @@ export default function SudokuPage() {
     null
   );
 
-  const solved = useMemo(
-    () =>
-      board.every((row, rowIndex) =>
-        row.every((value, columnIndex) => value === sudokuSolution[rowIndex][columnIndex])
-      ),
-    [board]
-  );
+  const solved = useMemo(() => isSudokuSolved(board), [board]);
 
   useEffect(() => {
     if (solved) {
@@ -57,7 +41,7 @@ export default function SudokuPage() {
     const correct = correctValue === value;
 
     setBoard((previous) => {
-      const next = previous.map((row) => [...row]);
+      const next = cloneSudokuGrid(previous);
       if (correct) {
         next[rowIndex][columnIndex] = value;
       }
@@ -96,7 +80,7 @@ export default function SudokuPage() {
     const { row, column } = randomCell;
 
     setBoard((previous) => {
-      const next = previous.map((r) => [...r]);
+      const next = cloneSudokuGrid(previous);
       next[row][column] = sudokuSolution[row][column];
       return next;
     });
@@ -107,7 +91,7 @@ export default function SudokuPage() {
   };
 
   const resetBoard = () => {
-    setBoard(sudokuPuzzle.map((row) => [...row]));
+    setBoard(cloneSudokuGrid(sudokuPuzzle));
     setHintsRemaining(3);
     setBoostsRemaining(5);
     setLastDrop(null);
@@ -201,8 +185,8 @@ export default function SudokuPage() {
           transition={{ type: "spring", stiffness: 110, damping: 16, delay: 0.1 }}
         >
           <div className="relative flex h-56 w-56 items-center justify-center rounded-full border border-dashed border-primary/60 bg-primary/5">
-            {numbers.map((number, index) => {
-              const angle = (index / numbers.length) * Math.PI * 2;
+            {sudokuNumbers.map((number, index) => {
+              const angle = (index / sudokuNumbers.length) * Math.PI * 2;
               const x = Math.cos(angle) * 96;
               const y = Math.sin(angle) * 96;
               return (
